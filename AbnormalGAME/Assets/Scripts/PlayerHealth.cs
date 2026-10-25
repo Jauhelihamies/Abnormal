@@ -1,8 +1,8 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using System.Collections;
 
-[RequireComponent(typeof(AudioSource))] // UUSI: Varmistaa, että hahmolla on äänilähde
+[RequireComponent(typeof(AudioSource))]
 public class PlayerHealth : MonoBehaviour
 {
     [Header("Sprites")]
@@ -12,12 +12,16 @@ public class PlayerHealth : MonoBehaviour
     public Sprite damagedSprite2;
     public Sprite healingSprite;
     public Sprite gameOverSprite;
+    public GameObject EYES;
 
-    public GameObject Eyes;
     [Header("Audio Clips")]
-    public AudioClip damageSound;      // UUSI: Ääni kun otetaan osumaa
-    public AudioClip healingLoopSound; // UUSI: Jatkuva ääni parannuksen aikana (esim. puskassa suhina tai latausääni)
-    public AudioClip gameOverSound;    // UUSI: Ääni kun kurpitsa menee muussiksi
+    public AudioClip damageSound;
+    public AudioClip healingLoopSound;
+    public AudioClip gameOverSound;
+
+    [Header("Effects")]
+    public ParticleSystem deathParticles;
+    public GameOverUI uiScript; // VIITTAUS UUTEEN UI-SKRIPTIIN
 
     [Header("Damage Settings")]
     public float damageCooldown = 1.5f;
@@ -35,14 +39,14 @@ public class PlayerHealth : MonoBehaviour
 
     private PlayerMovement movementScript;
     private Rigidbody2D rb;
-    private AudioSource audioSource; // UUSI: Komponentti äänten toistamiseen
+    private AudioSource audioSource;
     private float originalRotationZ;
 
     void Start()
     {
         movementScript = GetComponent<PlayerMovement>();
         rb = GetComponent<Rigidbody2D>();
-        audioSource = GetComponent<AudioSource>(); // Haetaan äänilähde
+        audioSource = GetComponent<AudioSource>();
 
         if (spriteRenderer == null)
             spriteRenderer = GetComponent<SpriteRenderer>();
@@ -53,7 +57,6 @@ public class PlayerHealth : MonoBehaviour
     void Update()
     {
         if (isDead) return;
-
         HandleHealingInput();
     }
 
@@ -61,7 +64,6 @@ public class PlayerHealth : MonoBehaviour
     {
         bool ePressed = Keyboard.current != null && Keyboard.current.eKey.isPressed;
         bool squarePressed = Gamepad.current != null && Gamepad.current.buttonWest.isPressed;
-
         bool isHoldingHeal = ePressed || squarePressed;
 
         if (isHoldingHeal && currentHealth < 3)
@@ -70,7 +72,6 @@ public class PlayerHealth : MonoBehaviour
             {
                 isHealing = true;
                 originalRotationZ = transform.rotation.eulerAngles.z;
-
                 if (movementScript != null) movementScript.enabled = false;
 
                 if (rb != null)
@@ -81,7 +82,6 @@ public class PlayerHealth : MonoBehaviour
 
                 if (healingSprite != null) spriteRenderer.sprite = healingSprite;
 
-                // UUSI: Aloitetaan parannusäänen toisto loopilla
                 if (audioSource != null && healingLoopSound != null)
                 {
                     audioSource.clip = healingLoopSound;
@@ -91,7 +91,6 @@ public class PlayerHealth : MonoBehaviour
             }
 
             healTimer += Time.deltaTime;
-
             float zRotation = originalRotationZ + Mathf.Sin(Time.time * shakeSpeed) * shakeAmount;
             transform.rotation = Quaternion.Euler(0, 0, zRotation);
 
@@ -100,16 +99,12 @@ public class PlayerHealth : MonoBehaviour
                 currentHealth = 3;
                 ResetHealingState();
                 UpdateSprite();
-                Debug.Log("Pelaaja parannettu täyteen!");
             }
         }
-        else
+        else if (isHealing)
         {
-            if (isHealing)
-            {
-                ResetHealingState();
-                UpdateSprite();
-            }
+            ResetHealingState();
+            UpdateSprite();
         }
     }
 
@@ -118,7 +113,6 @@ public class PlayerHealth : MonoBehaviour
         isHealing = false;
         healTimer = 0f;
 
-        // UUSI: Pysäytetään parannusääni
         if (audioSource != null)
         {
             audioSource.Stop();
@@ -137,20 +131,17 @@ public class PlayerHealth : MonoBehaviour
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (isDead) return;
-        if (collision.gameObject.CompareTag("Enemy")) TakeDamage();
+        if (!isDead && collision.gameObject.CompareTag("Enemy")) TakeDamage();
     }
 
     private void OnTriggerStay2D(Collider2D other)
     {
-        if (isDead) return;
-        if (other.CompareTag("Enemy")) TakeDamage();
+        if (!isDead && other.CompareTag("Enemy")) TakeDamage();
     }
 
     void TakeDamage()
     {
         if (isInvulnerable) return;
-
         if (isHealing) ResetHealingState();
 
         currentHealth--;
@@ -161,12 +152,7 @@ public class PlayerHealth : MonoBehaviour
         }
         else
         {
-            // UUSI: Soitetaan osumaääni kerran (PlayOneShot ei katkaise muita ääniä)
-            if (audioSource != null && damageSound != null)
-            {
-                audioSource.PlayOneShot(damageSound);
-            }
-
+            if (audioSource != null && damageSound != null) audioSource.PlayOneShot(damageSound);
             UpdateSprite();
             StartCoroutine(DamageCooldownRoutine());
         }
@@ -189,7 +175,6 @@ public class PlayerHealth : MonoBehaviour
     void UpdateSprite()
     {
         if (isHealing) return;
-
         switch (currentHealth)
         {
             case 3: spriteRenderer.sprite = normalSprite; break;
@@ -201,24 +186,49 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         isDead = true;
-        Eyes.SetActive(false);
+        if (EYES != null) EYES.SetActive(false);
         spriteRenderer.sprite = gameOverSprite;
         transform.rotation = Quaternion.identity;
+
         if (audioSource != null)
         {
             audioSource.Stop();
             audioSource.loop = false;
-            if (gameOverSound != null)
-            {
-                audioSource.PlayOneShot(gameOverSound);
-            }
+            if (gameOverSound != null) audioSource.PlayOneShot(gameOverSound);
         }
 
+        if (deathParticles != null) deathParticles.Play();
         if (movementScript != null) movementScript.enabled = false;
+
         if (rb != null)
         {
             rb.bodyType = RigidbodyType2D.Dynamic;
-            rb.linearVelocity = Vector2.zero;
+            rb.freezeRotation = false;
+            rb.centerOfMass = new Vector2(0f, -0.5f);
+            rb.linearDamping = 0f;
+            rb.angularDamping = 0.5f;
+            rb.linearVelocity = new Vector2(Random.Range(-2f, 2f), 3f);
+            rb.angularVelocity = Random.Range(-100f, 100f);
+        }
+
+        int playerLayer = gameObject.layer;
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+        if (enemyLayer != -1) Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
+
+        // Kutsutaan UI-skriptiä käynnistymään
+        if (uiScript != null) uiScript.StartGameOverSequence();
+    }
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (isDead && movementScript != null && ((1 << collision.gameObject.layer) & movementScript.groundLayer) != 0)
+        {
+            if (rb != null)
+            {
+                rb.linearDamping = 2.5f;
+                rb.angularDamping = 2.5f;
+                rb.gravityScale = 2f;
+            }
         }
     }
 }

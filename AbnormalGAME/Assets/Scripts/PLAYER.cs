@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(AudioSource))] // Varmistetaan äänilähde hyppyä varten
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -14,31 +15,31 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundLayer;
     public float checkRadius = 0.2f;
     public float RotateSpeed = 1f;
+    public AudioClip jumpSound; // UUSI: Äänitiedosto hyppäykselle
 
     private Rigidbody2D rb;
+    private AudioSource audioSource; // UUSI: Viittaus äänilähteeseen
     private bool isGrounded;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        audioSource = GetComponent<AudioSource>(); // Haetaan äänilähde
         rb.freezeRotation = true;
     }
 
     void Update()
     {
-        // Jos skripti on jostain syystä deaktivoitu, älä lue syötteitä
         if (!enabled) return;
 
         horizontalInput = 0f;
 
-        // Näppäimistö
         if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) horizontalInput = -1f;
             if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) horizontalInput = 1f;
         }
 
-        // PS5 Ohjain
         if (Gamepad.current != null)
         {
             float gamepadX = Gamepad.current.leftStick.x.ReadValue();
@@ -48,7 +49,6 @@ public class PlayerMovement : MonoBehaviour
             else if (Mathf.Abs(dpadX) > 0.1f) horizontalInput = dpadX;
         }
 
-        // Maatunnistus
         if (groundCheck != null)
         {
             isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
@@ -58,7 +58,6 @@ public class PlayerMovement : MonoBehaviour
             isGrounded = Physics2D.OverlapCircle(transform.position - new Vector3(0, 0.5f, 0), checkRadius, groundLayer);
         }
 
-        // Hyppy
         bool jumpPressed = false;
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) jumpPressed = true;
         if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame) jumpPressed = true;
@@ -66,12 +65,15 @@ public class PlayerMovement : MonoBehaviour
         if (isGrounded && jumpPressed)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            if (audioSource != null && jumpSound != null)
+            {
+                audioSource.PlayOneShot(jumpSound);
+            }
         }
     }
 
     void FixedUpdate()
     {
-        // Varmistetaan fysiikkaliikkeen pysäytys, jos skripti ei ole päällä
         if (!enabled) return;
 
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
@@ -82,7 +84,6 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
-    // UUSI: Kun tämä skripti otetaan pois päältä (esim. parannus alkaa), pysäytetään hahmo seinään
     void OnDisable()
     {
         if (rb != null)

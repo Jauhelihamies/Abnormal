@@ -3,17 +3,12 @@ using System.Collections;
 
 public class AdvancedEyeBlinkShader : MonoBehaviour
 {
-    [Header("Components")]
     public SpriteRenderer eyeRenderer;
-
-    [Header("Glow Settings")]
     [Range(0f, 10f)] public float minBrightness = 0.3f;
     public float maxBrightness = 1.0f;
     [Range(0f, 1f)] public float noiseStrength = 0.2f;
     public float noiseSpeed = 6f;
-    public float glowFadeSpeed = 2f; // UUSI: Kuinka nopeasti hehku laskee takaisin minimiin avautumisen jälkeen
-
-    [Header("Blink Settings")]
+    public float glowFadeSpeed = 2f; 
     public float blinkChance = 0.15f;
     public float closeDuration = 0.15f;
     public float holdClosedDuration = 0.2f;
@@ -42,8 +37,6 @@ public class AdvancedEyeBlinkShader : MonoBehaviour
         holdClosedWait = new WaitForSeconds(holdClosedDuration);
 
         eyeMaterial.SetFloat(BlinkProgressProperty, 0f);
-
-        // Aloitetaan minimihehkusta
         currentGlowBrightness = minBrightness;
         eyeMaterial.SetFloat(GlowBrightnessProperty, currentGlowBrightness);
 
@@ -53,18 +46,12 @@ public class AdvancedEyeBlinkShader : MonoBehaviour
     void Update()
     {
         if (eyeMaterial == null) return;
-
-        // Jos silmä ei räpsähdä, hehku palautuu hitaasti minimiarvoon
         if (!isBlinking && currentGlowBrightness > minBrightness)
         {
             currentGlowBrightness = Mathf.MoveTowards(currentGlowBrightness, minBrightness, Time.deltaTime * glowFadeSpeed);
         }
-
-        // Kohina pidetään päällä elävöittämään silmää, mutta se lasketaan nykyisestä hehkun tasosta
         float noiseSample = Mathf.PerlinNoise(Time.time * noiseSpeed, seed);
         float noiseOffset = (noiseSample * 2f - 1f) * noiseStrength;
-
-        // Lopullinen kirkkaus perustuu nykyiseen dynaamiseen hehkuun + kohinaan
         float finalBrightness = Mathf.Clamp(currentGlowBrightness + noiseOffset, minBrightness, maxBrightness);
         eyeMaterial.SetFloat(GlowBrightnessProperty, finalBrightness);
     }
@@ -85,8 +72,6 @@ public class AdvancedEyeBlinkShader : MonoBehaviour
     {
         isBlinking = true;
         float timer = 0f;
-
-        // 1. Silmä menee kiinni (Hehku voi tässä samalla laskea minimiin)
         while (timer < closeDuration)
         {
             timer += Time.deltaTime;
@@ -99,27 +84,19 @@ public class AdvancedEyeBlinkShader : MonoBehaviour
         }
         eyeMaterial.SetFloat(BlinkProgressProperty, 1f);
         currentGlowBrightness = minBrightness;
-
-        // 2. Silmä pysyy kiinni
         yield return holdClosedWait;
-
-        // 3. Silmä avautuu ja HEHKU LÄMÄHTÄÄ TÄYTEEN (maxBrightness)
         timer = 0f;
         while (timer < openDuration)
         {
             timer += Time.deltaTime;
             float progress = timer / openDuration;
             eyeMaterial.SetFloat(BlinkProgressProperty, 1f - progress);
-
-            // Hehku nousee maksimiin sitä mukaa kun silmä aukeaa
             currentGlowBrightness = Mathf.Lerp(minBrightness, maxBrightness, progress);
 
             yield return null;
         }
         eyeMaterial.SetFloat(BlinkProgressProperty, 0f);
         currentGlowBrightness = maxBrightness;
-
-        // Räpsäys on ohi, Update-funktio hoitaa hehkun hitaan himmentämisen takaisin minBrightness-tasolle
         isBlinking = false;
     }
 
