@@ -28,6 +28,10 @@ public class MainMenuUI : MonoBehaviour
             EventSystem.current.SetSelectedGameObject(firstSelectedButton);
         }
     }
+    public void LoadMainMenu()
+    {
+        SceneManager.LoadScene(0);
+    }
 
 
     public void PlayGame()

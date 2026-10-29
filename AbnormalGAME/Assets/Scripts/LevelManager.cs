@@ -8,8 +8,8 @@ public class LevelManager : MonoBehaviour
 
     [Header("Asetukset")]
     public Transform pelaaja;
-    public float palanLeveys = 12.8f; 
-    public float palanKorkeus = 6f;   
+    public float palanLeveys = 12.8f;
+    public float palanKorkeus = 6f;
     public int palojaKerrallaan = 2;
 
     private Queue<GameObject> aktiivisetPalat = new Queue<GameObject>();
@@ -36,13 +36,10 @@ public class LevelManager : MonoBehaviour
     void SynnytaSeuraavaPala()
     {
         GameObject valittuPrefab = taustaPrefabit[nykyinenTeemaIndeksi];
-
-
         Vector3 uusiSijainti = new Vector3(seuraavanPalanX, palanKorkeus, 0f);
-
         GameObject uusiPala = Instantiate(valittuPrefab, uusiSijainti, Quaternion.identity);
-        aktiivisetPalat.Enqueue(uusiPala);
 
+        aktiivisetPalat.Enqueue(uusiPala);
         seuraavanPalanX += palanLeveys;
 
         // Teeman vaihto (esimerkki):

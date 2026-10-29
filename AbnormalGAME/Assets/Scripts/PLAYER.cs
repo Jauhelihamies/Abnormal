@@ -20,13 +20,13 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     private AudioSource audioSource;
     private bool isGrounded;
-    private Collider2D playerCollider; // UUSI: Viittaus pelaajan omaan collideriin
+    private Collider2D playerCollider;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         audioSource = GetComponent<AudioSource>();
-        playerCollider = GetComponent<Collider2D>(); // Haetaan pelaajan oma collider
+        playerCollider = GetComponent<Collider2D>();
         rb.freezeRotation = true;
     }
 
@@ -36,23 +36,32 @@ public class PlayerMovement : MonoBehaviour
 
         horizontalInput = 0f;
 
-        // Ohjaimet
+        // --- NÄPPÄIMISTÖ ---
         if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) horizontalInput = -1f;
             if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) horizontalInput = 1f;
         }
 
-        if (Gamepad.current != null)
+        Gamepad activeGamepad = Gamepad.current;
+        if (activeGamepad != null)
         {
-            float gamepadX = Gamepad.current.leftStick.x.ReadValue();
-            float dpadX = Gamepad.current.dpad.x.ReadValue();
-            if (Mathf.Abs(gamepadX) > 0.1f) horizontalInput = gamepadX;
-            else if (Mathf.Abs(dpadX) > 0.1f) horizontalInput = dpadX;
+            // Luetaan tatin ja d-padin x-akselit
+            float gamepadX = activeGamepad.leftStick.x.ReadValue();
+            float dpadX = activeGamepad.dpad.x.ReadValue();
+
+
+            if (Mathf.Abs(gamepadX) > 0.1f)
+            {
+                horizontalInput = gamepadX;
+            }
+            else if (Mathf.Abs(dpadX) > 0.1f)
+            {
+                horizontalInput = dpadX;
+            }
         }
 
-        // MAANTUNNISTUS (Ground Check)
-        // Huomioidaan groundLayer, jotta ei osuta kaikkeen.
+
         if (groundCheck != null)
         {
             isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
@@ -64,15 +73,19 @@ public class PlayerMovement : MonoBehaviour
 
         // HYPPYINPUT
         bool jumpPressed = false;
-        if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) jumpPressed = true;
-        if (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame) jumpPressed = true;
 
-        // NERF: Hypätään ja soitetaan ääni VAIN jos ollaan maassa
+        if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
+            jumpPressed = true;
+
+
+        if (activeGamepad != null && activeGamepad.buttonSouth.wasPressedThisFrame)
+            jumpPressed = true;
+
+
         if (jumpPressed && isGrounded)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
 
-            // Ääni soi vain maasta hypätessä, koska olemme tämän if-ehdon sisällä
             if (audioSource != null && jumpSound != null)
             {
                 audioSource.PlayOneShot(jumpSound);
