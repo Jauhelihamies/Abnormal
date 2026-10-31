@@ -15,12 +15,13 @@ public class DestructibleTombstone : MonoBehaviour
     private bool isInvulnerable = false;
 
     [Header("Audio Settings")]
-    public AudioClip[] crumbleSounds; // Muutettu taulukoksi, johon voi lisätä useita ääniä
+    public AudioClip[] crumbleSounds;
     [Range(0.1f, 3f)] public float minPitch = 0.85f;
     [Range(0.1f, 3f)] public float maxPitch = 1.15f;
 
     [Header("Effects")]
     public ParticleSystem dustParticles;
+    public float fadeDuration = 0.5f; // Kuinka kauan häivytys kestää
 
     private int currentStage = 1;
     private bool isDestroyed = false;
@@ -47,25 +48,21 @@ public class DestructibleTombstone : MonoBehaviour
 
         currentStage++;
 
-        // Äänen valinta ja toistaminen satunnaisella pitchillä
         if (audioSource != null && crumbleSounds != null && crumbleSounds.Length > 0)
         {
-            // Valitaan satunnainen ääni listalta
             int randomIndex = Random.Range(0, crumbleSounds.Length);
             AudioClip randomClip = crumbleSounds[randomIndex];
 
             if (randomClip != null)
             {
-                // Asetetaan satunnainen pitch
                 float randomPitch = Random.Range(minPitch, maxPitch);
                 audioSource.pitch = randomPitch;
-
-                // Soitetaan valittu ääni
                 audioSource.PlayOneShot(randomClip);
             }
         }
 
-        if (dustParticles != null) dustParticles.Play();
+        if (dustParticles != null)
+            dustParticles.Play();
 
         if (currentStage == 2)
         {
@@ -116,19 +113,57 @@ public class DestructibleTombstone : MonoBehaviour
     void BreakCompletely()
     {
         isDestroyed = true;
-        if (stage4Broken != null) spriteRenderer.sprite = stage4Broken;
+
+        if (stage4Broken != null)
+            spriteRenderer.sprite = stage4Broken;
+
         StartCoroutine(SmoothRotateRoutine(-85f));
 
+        // SAMMUTETAAN COLLIDER: Poistaa fysiikat ja osumat käytöstä heti
         Collider2D col = GetComponent<Collider2D>();
         if (col != null)
         {
-            col.isTrigger = true;
+            col.enabled = false;
         }
+
+
+        StartCoroutine(FadeOutRoutine());
+    }
+
+    IEnumerator FadeOutRoutine()
+    {
+        // Odotetaan ensin 1.0 sekuntia maassa (rotaatio ja äänet ehtivät alkaa hyvin)
+        yield return new WaitForSeconds(1.0f);
+
+        if (spriteRenderer != null)
+        {
+            Color startColor = spriteRenderer.color;
+            float elapsed = 0f;
+
+            while (elapsed < fadeDuration)
+            {
+                elapsed += Time.deltaTime;
+                float alpha = Mathf.Lerp(1f, 0f, elapsed / fadeDuration);
+                spriteRenderer.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+                yield return null;
+            }
+        }
+
+        // Tuhotaan objekti lopullisesti, kun se on kokonaan näkymätön
+        Destroy(gameObject);
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Enemy") || collision.gameObject.CompareTag("Player"))
+        {
+            TakeHit();
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.CompareTag("Enemy") || other.CompareTag("Player"))
         {
             TakeHit();
         }

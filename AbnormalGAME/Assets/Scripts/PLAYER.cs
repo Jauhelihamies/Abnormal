@@ -22,6 +22,9 @@ public class PlayerMovement : MonoBehaviour
     private bool isGrounded;
     private Collider2D playerCollider;
 
+    [Header("Knockback")]
+    private float knockbackTimer;
+    private bool isKnockbackActive => knockbackTimer > 0;
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -93,10 +96,22 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    // --- LISÄÄ NÄMÄ MUUTTUJAT LUOKAN ALKUUN ---
+
+
+    // --- KORVAA VANHA FIXEDUPDATE TÄLLÄ ---
     void FixedUpdate()
     {
         if (!enabled) return;
 
+        // Jos knockback on aktiivinen, vähennetään aikaa eikä ylikirjoiteta liikenopeutta!
+        if (isKnockbackActive)
+        {
+            knockbackTimer -= Time.fixedDeltaTime;
+            return;
+        }
+
+        // Normaali liikkuminen (tapahtuu vain, kun knockback EI ole päällä)
         rb.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb.linearVelocity.y);
 
         if (Mathf.Abs(horizontalInput) > 0.1f)
@@ -104,6 +119,16 @@ public class PlayerMovement : MonoBehaviour
             transform.Rotate(0, 0, -horizontalInput * moveSpeed * RotateSpeed);
         }
     }
+
+    // --- LISÄÄ TÄMÄ UUSI METODI LUOKAN LOPPUUN ---
+    // Vihollinen voi kutsua tätä suoraan antaakseen lennon
+    public void ApplyKnockback(Vector2 force, float duration)
+    {
+        rb.linearVelocity = Vector2.zero; // Nollataan vanha vauhti alta
+        rb.AddForce(force, ForceMode2D.Impulse); // Annetaan tönäisy
+        knockbackTimer = duration; // Asetetaan lukitusaika (esim. 0.25 sekuntia)
+    }
+
 
     void OnDisable()
     {

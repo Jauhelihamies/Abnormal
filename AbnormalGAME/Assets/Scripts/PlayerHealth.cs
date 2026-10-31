@@ -139,7 +139,7 @@ public class PlayerHealth : MonoBehaviour
         if (!isDead && other.CompareTag("Enemy")) TakeDamage();
     }
 
-    void TakeDamage()
+    public void TakeDamage()
     {
         if (isInvulnerable) return;
         if (isHealing) ResetHealingState();
