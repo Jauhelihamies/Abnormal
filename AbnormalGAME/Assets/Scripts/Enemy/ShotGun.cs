@@ -21,8 +21,9 @@ public class EnemyShotgun : MonoBehaviour
     public float minFireCooldown = 1.5f;
     public float maxFireCooldown = 4.0f;
 
-    [Header("Turhautumisammunta")]
+    [Header("Turhautumisammunta (Rangen ulkopuolella)")]
     [Range(0f, 100f)]
+    [Tooltip("Kuinka suurella prosenttina vihollinen ampuu tyhjää rangen ulkopuolella cooldownin täyttyessä")]
     public float blindFireChance = 20f;
 
     [Header("Hylsyn fysiikat")]
@@ -31,9 +32,9 @@ public class EnemyShotgun : MonoBehaviour
     public float shellTorque = 100f;
 
     [Header("Ääniefektit")]
-    public AudioClip reloadBeforeShootSound;
-    public AudioClip shootSound;
-    public AudioClip shellSound;
+    public AudioClip reloadBeforeShootSound; // 1. Latausääni (klik-klak)
+    public AudioClip shootSound;              // 2. Ampumisääni (pum!)
+    public AudioClip shellSound;              // 3. Hylsyn kalahdus maahan
 
     private Transform playerTransform;
     private EnemyAI enemyAI;
@@ -51,46 +52,6 @@ public class EnemyShotgun : MonoBehaviour
 
         enemyAI = GetComponentInParent<EnemyAI>();
         SetRandomCooldown();
-
-        // 🚀 KÄYNNISTETÄÄN ESILÄMMITYS (Prewarm)
-        StartCoroutine(PrewarmShotgunRoutine());
-    }
-
-    IEnumerator PrewarmShotgunRoutine()
-    {
-        // 1. ÄÄNIEN ESILÄMMITYS
-        // Tallennetaan alkuperäinen äänenvoimakkuus
-        float originalVolume = audioSource.volume;
-        // Laitetaan ääni nollaan, jotta soitto tapahtuu täysin taustalla näkymättömästi
-        audioSource.volume = 0f;
-
-        // Pakotetaan Unity lataamaan äänidatat muistiin soittamalla ne äänettömästi
-        if (reloadBeforeShootSound != null) audioSource.PlayOneShot(reloadBeforeShootSound);
-        if (shootSound != null) audioSource.PlayOneShot(shootSound);
-        if (shellSound != null) audioSource.PlayOneShot(shellSound);
-
-        // Odotetaan yksi frame, että fysiikat ja audiot rekisteröityvät
-        yield return new WaitForEndOfFrame();
-
-
-        audioSource.volume = originalVolume;
-
-
-        Vector3 spawnFarAway = new Vector3(0, 0, -999f);
-
-        if (pelletPrefab != null)
-        {
-            GameObject dummyPellet = Instantiate(pelletPrefab, spawnFarAway, Quaternion.identity);
-            Destroy(dummyPellet);
-        }
-
-        if (shellPrefab != null)
-        {
-            GameObject dummyShell = Instantiate(shellPrefab, spawnFarAway, Quaternion.identity);
-            Destroy(dummyShell);
-        }
-
-
     }
 
     void Update()
@@ -103,18 +64,22 @@ public class EnemyShotgun : MonoBehaviour
         {
             float distanceToPlayer = Vector2.Distance(transform.position, playerTransform.position);
 
+            // Vaihtoehto A: Pelaaja on rangella -> ammutaan normaalisti
             if (distanceToPlayer <= enemyAI.stoppingDistance && distanceToPlayer > enemyAI.kickActivationRange)
             {
                 StartCoroutine(ShootSequenceRoutine(false));
             }
+            // Vaihtoehto B: Pelaaja on liian kaukana -> vihollinen voi turhautua ja ampua sokeasti ilmaan!
             else if (distanceToPlayer > enemyAI.stoppingDistance)
             {
                 if (Random.Range(0f, 100f) <= blindFireChance)
                 {
-                    StartCoroutine(ShootSequenceRoutine(true));
+                    Debug.Log("<color=orange>Vihollinen turhautui ja ampuu sokeasti ilmaan!</color>");
+                    StartCoroutine(ShootSequenceRoutine(true)); // true = sokkoammunta
                 }
                 else
                 {
+                    // Jos ei turhautunut, nollataan ja arvotaan uusi aika heti ettei koodi jumiudu
                     fireTimer = 0f;
                     SetRandomCooldown();
                 }
@@ -122,18 +87,22 @@ public class EnemyShotgun : MonoBehaviour
         }
     }
 
+    // Ääni- ja ampumasekvenssi
     IEnumerator ShootSequenceRoutine(bool isBlindFire)
     {
         isPreparingShot = true;
         fireTimer = 0f;
 
+        // 1. LATAUSÄÄNI ENNEN AMPUMISTA
         if (audioSource != null && reloadBeforeShootSound != null)
         {
             audioSource.PlayOneShot(reloadBeforeShootSound);
         }
 
+        // Odotetaan hetki latauksen aikana ennen kuin pamahtaa (esim. 0.4 sekuntia)
         yield return new WaitForSeconds(0.4f);
 
+        // 2. AMPUMISÄÄNI JA LUODIT
         if (audioSource != null && shootSound != null)
         {
             audioSource.PlayOneShot(shootSound);
@@ -141,8 +110,10 @@ public class EnemyShotgun : MonoBehaviour
 
         SpawnPellets(isBlindFire);
 
+        // Odotetaan pikkuruinen hetki ennen kuin hylsy lentää ja kolahtaa (realistisempaa)
         yield return new WaitForSeconds(0.1f);
 
+        // 3. HYLSY JA HYLSYN ÄÄNI
         EjectShell();
 
         isPreparingShot = false;
@@ -153,9 +124,18 @@ public class EnemyShotgun : MonoBehaviour
     {
         if (firePoint == null || pelletPrefab == null) return;
 
-        Vector2 shootDirection = (isBlindFire || playerTransform == null)
-            ? (Vector2)(transform.lossyScale.x > 0 ? Vector2.right : Vector2.left)
-            : (Vector2)(playerTransform.position - firePoint.position).normalized;
+        Vector2 shootDirection;
+
+        if (isBlindFire || playerTransform == null)
+        {
+            // Sokkoammunnassa ammutaan suoraan eteenpäin rintamasuunnan mukaan
+            shootDirection = transform.lossyScale.x > 0 ? Vector2.right : Vector2.left;
+        }
+        else
+        {
+            // Normaalisti tähdätään pelaajaan
+            shootDirection = (playerTransform.position - firePoint.position).normalized;
+        }
 
         float baseAngle = Mathf.Atan2(shootDirection.y, shootDirection.x) * Mathf.Rad2Deg;
 
@@ -194,6 +174,7 @@ public class EnemyShotgun : MonoBehaviour
             shellRb.AddTorque(Random.Range(-shellTorque, shellTorque));
         }
 
+        // SOITETAAN HYLSYN ÄÄNI (Kalahdus maahan/ilmaan)
         if (audioSource != null && shellSound != null)
         {
             audioSource.PlayOneShot(shellSound);
